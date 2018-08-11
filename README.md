@@ -1,5 +1,5 @@
 # b_danmu_ya
-B站弹幕丫
+
 B站弹幕丫是抓取B站弹幕的Python脚本, 开源共大家学习交流使用
 B站弹幕丫是由 https://github.com/piperck/b_danmu_chicken fork 而来, 可以说是站在巨人的肩膀上(在此感谢作者造福人类的举动), 然后进行了增强改进, 目前V1.0版本能把所有的弹幕消息(弹幕消息,老爷欢迎,送礼物...)抓取到, 如此如果有需要可将编程API供诸君使用.
 
@@ -13,6 +13,6 @@ B站弹幕丫是由 https://github.com/piperck/b_danmu_chicken fork 而来, 可�
 
 使用:
 1. 获取B站直播房间的room_id
-![image][./room_id.png]
+![image](./room_id.png)
 2. 将room_id 填入 dmj_v2.py 末尾处的room_id 变量
 3. python2 dmj_v2.py 执行即可看到弹幕输出
