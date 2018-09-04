@@ -14,22 +14,25 @@ from const import BCommand
 import socket
 import danmuparser
 
-PRINT_JSON=False
+PRINT_JSON = False
+
 
 def print_json(json_data):
     if PRINT_JSON:
         print('☘ ☘ Json format☘ ☘')
-        print(json_data) 
+        print(json_data)
         print('\n')
+
 
 def _heartbeat(self):
     while True:
         time.sleep(30)
-        #heartbeat_pack = struct.pack('!IHHII', length, magic_num, version, msg_type, data_exchange_pack)
-        heartbeat_pack = struct.pack('!IHHII', 16, 16, 1, 2, 1)        
+        # heartbeat_pack = struct.pack('!IHHII', length, magic_num, version, msg_type, data_exchange_pack)
+        heartbeat_pack = struct.pack('!IHHII', 16, 16, 1, 2, 1)
         self.socket_client.send(heartbeat_pack + "".encode('utf-8'))
         print('Client ❤ ❤ ❤ ❤ ❤ ❤ ❤ ❤ ❤ ❤ ❤\n')
-        #\u2665
+        # \u2665
+
 
 class DMJBot(object):
     def __init__(self, room_id, u_id=0):
@@ -44,14 +47,13 @@ class DMJBot(object):
         self.package_type = 1
         self.max_data_length = 65495
 
-        
     def _set_up(self):
         room_detail_xml_string = self._http_get_request(self.api_room_detail_url)
         xml_string = ('<root>' + room_detail_xml_string.strip() + '</root>').encode('utf-8')
         root = xml.dom.minidom.parseString(xml_string).documentElement
         dm_server = root.getElementsByTagName('dm_server')
         self.dm_host = dm_server[0].firstChild.data
-        #self.dm_host = '120.92.112.150'
+        # self.dm_host = '120.92.112.150'
 
         # tcp_socket return
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -69,16 +71,18 @@ class DMJBot(object):
         _data = data.encode('utf-8')
         _send_bytes = struct.pack('!IHHII', data_length, self.magic, self.ver, self.into_room, self.package_type)
         return _send_bytes + _data
-    
-    def GetData(self, expect):
-        data=self.socket_client.recv(expect)
-        if (len(data)==expect):
-            return data
-        left=expect-len(data)
-        while left>0:
-            data+=self.socket_client.recv(left)
-            left=expect-(len(data))
-        return data  
+
+    def read_data(self, expect):
+        left = expect
+        data = bytes()
+        while left > 0:
+            delta = self.socket_client.recv(left)
+            if len(delta) < 1:
+                print('BROKEN')
+                return None
+            data += delta
+            left = expect - len(delta)
+        return data
 
     def _start(self):
         _thread.start_new_thread(_heartbeat, (self,))
@@ -95,55 +99,47 @@ class DMJBot(object):
         self.socket_client.recv(16)
 
         while True:
-            pre_data = self.GetData(16) 
-            #print('☘ ☘ pre_data length: ' + str(len(pre_data)))
-            if len(pre_data) != 16:
-                print('pre_data length:' + str(len(pre_data)) + ', which is supposed to be 16...')                
-                print('pre_data length:' + str(len(pre_data)) + ', which is supposed to be 16...')                
-                print('pre_data length:' + str(len(pre_data)) + ', which is supposed to be 16...')                
+            pre_data = self.read_data(16)
 
             try:
                 claimed_len, magic, ver, message_type, package_type = struct.unpack('!IHHII', pre_data)
-                if (claimed_len == 20):
+                if claimed_len == 20:
                     print('Bilibili ❤ ❤ ❤ ❤ ❤ ❤ ❤ ❤ ❤ ❤ ❤')
-                    danmu_msg_package = self.socket_client.recv(claimed_len-16)                                
+                    danmu_msg_package = self.socket_client.recv(claimed_len - 16)
                     online = struct.unpack('!l', danmu_msg_package)
-                    print('人气值: '+ str(online[0]) + '\n')
+                    print('人气值: ' + str(online[0]) + '\n')
                     continue
             except struct.error:
-                print ('pre_data: ' + pre_data.decode('utf-8'))
-                print ('pre_data_len: ' + str(len(pre_data)))
+                print('pre_data: ' + pre_data.decode('utf-8'))
+                print('pre_data_len: ' + str(len(pre_data)))
                 continue
             except:
                 print("Unexpected error:", sys.exc_info()[0])
                 continue
-            
+
             try:
-                #print('☘ ☘ claimed length: ' + str(claimed_len))
-                if claimed_len<16:
-                    warn('☘ ☘ claimed length is too small')
- 
-                danmu_msg_package = self.GetData((claimed_len-16))
+                danmu_msg_package = self.read_data((claimed_len - 16))
                 danmu_msg_json = danmu_msg_package.decode('utf-8')
                 print_json(danmu_msg_json)
                 json_data = simplejson.loads(danmu_msg_json)
                 danmu_brief = danmuparser.parse_danmu(danmu_msg_json)
             except simplejson.JSONDecodeError:
                 print('json error: ' + danmu_msg_json + '\n\n')
-                #continue
+                # continue
             except UnicodeDecodeError:
                 print('UnicodeDecodeError***************************')
-                print(danmu_msg_package)               
+                print(danmu_msg_package)
                 print('UnicodeDecodeError***************************\n\n')
-                #continue
+                # continue
             except:
-               print("Unexpected error:", sys.exc_info()[0])
+                print("Unexpected error:", sys.exc_info()[0])
+
 
 if __name__ == '__main__':
     print(sys.argv)
     print('https://api.live.bilibili.com/api/player?id=cid:{}'.format(139))
-    #Diffir Live 
-    #room_id=5565763
-    room_id=1029
-    dmj = DMJBot(room_id)    
+    # Diffir Live
+    # room_id=5565763
+    room_id = 1029
+    dmj = DMJBot(room_id)
     dmj._start()
