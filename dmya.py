@@ -1,18 +1,14 @@
 # coding: utf-8
 import random
-import os
-import io
 import sys
 import _thread
-import threading
 import time
 import requests
 import xml.dom.minidom
 import struct
 import simplejson
-from const import BCommand
 import socket
-import danmuparser
+import parser
 
 PRINT_JSON = False
 
@@ -122,7 +118,7 @@ class DMJBot(object):
                 danmu_msg_json = danmu_msg_package.decode('utf-8')
                 print_json(danmu_msg_json)
                 json_data = simplejson.loads(danmu_msg_json)
-                danmu_brief = danmuparser.parse_danmu(danmu_msg_json)
+                danmu_brief = parser.parse_danmu(danmu_msg_json)
             except simplejson.JSONDecodeError:
                 print('json error: ' + danmu_msg_json + '\n\n')
                 # continue
