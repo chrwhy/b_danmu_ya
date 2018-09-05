@@ -64,13 +64,15 @@ class DMJBot(object):
         return _send_bytes + _data
 
     def recv_data(self, expect):
-        data = self.socket_client.recv(expect)
-        if len(data) == expect:
-            return data
-        left = expect - len(data)
+        left = expect
+        data = bytes()
         while left > 0:
-            data += self.socket_client.recv(left)
-            left = expect - (len(data))
+            delta = self.socket_client.recv(left)
+            if len(delta) < 1:
+                print('=====BROKEN=====')
+                return None
+            data += delta
+            left = left - len(delta)
         return data
 
     def _start(self):
@@ -110,7 +112,6 @@ class DMJBot(object):
                 danmu_msg_package = self.recv_data(claimed_len - 16)
                 danmu_msg_json = danmu_msg_package.decode('utf-8')
                 print_json(danmu_msg_json)
-                json_data = simplejson.loads(danmu_msg_json)
                 danmu_brief = parser.parse_danmu(danmu_msg_json)
             except simplejson.JSONDecodeError:
                 print('json error: ' + danmu_msg_json + '\n\n')

@@ -7,6 +7,7 @@ import simplejson
 
 STARTED = False
 
+
 def assemble_json(user, msg, cmd):
     # if user=='chrwhy' and msg=='START':
     #    return 'STARTED'
