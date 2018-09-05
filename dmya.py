@@ -8,7 +8,7 @@ import xml.dom.minidom
 import struct
 import simplejson
 import socket
-import parser
+import bparser
 
 PRINT_JSON = False
 
@@ -112,7 +112,7 @@ class DMJBot(object):
                 danmu_msg_package = self.recv_data(claimed_len - 16)
                 danmu_msg_json = danmu_msg_package.decode('utf-8')
                 print_json(danmu_msg_json)
-                danmu_brief = parser.parse_danmu(danmu_msg_json)
+                danmu_brief = bparser.parse_danmu(danmu_msg_json)
             except simplejson.JSONDecodeError:
                 print('json error: ' + danmu_msg_json + '\n\n')
                 # continue
@@ -122,7 +122,7 @@ class DMJBot(object):
                 print('UnicodeDecodeError***************************\n\n')
                 # continue
             except:
-                print("Unexpected errorxx:", sys.exc_info()[0])
+                print("Unexpected error:", sys.exc_info()[0])
 
 
 if __name__ == '__main__':

@@ -9,8 +9,6 @@ STARTED = False
 
 
 def assemble_json(user, msg, cmd):
-    # if user=='chrwhy' and msg=='START':
-    #    return 'STARTED'
     danmu = {'component': 'DANMAKU', 'user': user, 'message': msg, 'cmd': cmd, 'from': 'Bilibili'}
     return simplejson.dumps(danmu)
 
