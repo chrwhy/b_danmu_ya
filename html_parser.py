@@ -9,29 +9,30 @@ import struct
 import simplejson
 import socket
 import urllib
+import ssl
 import bs4
 from bs4 import BeautifulSoup
 
-print(bs4.__file__)
-
 if __name__ == '__main__':
-    print('Start')
+    print('Start...')
+    context = ssl._create_unverified_context()
     uri = "https://live.bilibili.com/465"
-    xx = urllib.request.urlopen(uri)
-    soup = BeautifulSoup(xx.read(),"lxml")    
+    print(uri)
+    doc = urllib.request.urlopen(uri, context=context)
+    soup = BeautifulSoup(doc.read(),"lxml")    
+
     #print(soup.prettify())
     #print(soup.findAll('script'))
     #print(soup.findAll('script')[16])
     #print(len(soup.findAll('script')))    
+
     scripts = soup.findAll('script')
     for i in range(len(scripts)):        
         script=str(scripts[i])
         if script.find('"room_id"') >0:
-            b=scripts[i].contents[0]
-            #print(str(b))                       
-            #b = b.replace("window.__NEPTUNE_IS_MY_WAIFU__=","")
-            x = str(b).split("=", 1)[1]
-            data=simplejson.loads(x)
+            content=str(scripts[i].contents[0])
+            json_part = content.split("=", 1)[1]
+            data=simplejson.loads(json_part)
             print(data['roomInitRes']['data']['room_id'])
                                     
 '''                                    
