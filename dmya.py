@@ -20,7 +20,7 @@ def print_json(json_data):
         print('\n')
 
 
-class DMJBot(object):
+class DMYa(object):
     def __init__(self, room_id, u_id=0):
         self.room_id = room_id
         self.api_room_detail_url = 'https://api.live.bilibili.com/api/player?id=cid:{}'.format(room_id)
@@ -129,6 +129,7 @@ if __name__ == '__main__':
     print(sys.argv)
     # Diffir Live
     # room_id=5565763
-    room_id = 280446
-    dmj = DMJBot(room_id)
+    room_id = 5096
+
+    dmj = DMYa(room_id)
     dmj._start()
