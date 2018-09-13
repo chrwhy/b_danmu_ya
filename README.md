@@ -16,5 +16,5 @@ B站弹幕丫是抓取B站直播弹幕的Python脚本, 开源共大家学习交�
 使用:
 1. 获取B站直播房间的room_id
 ![image](./room_id.png)
-2. 将room_id 填入 dmjya.py 末尾处的room_id 变量
-3. python3 dmjya.py 执行即可看到弹幕输出
+2. 将room_id 填入 dmya.py 末尾处的room_id 变量
+3. python3 dmya.py 执行即可看到弹幕输出
