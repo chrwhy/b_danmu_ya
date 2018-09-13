@@ -39,7 +39,7 @@ def resolve_room_id(url_room_id):
     scripts = soup.findAll('script')
     for i in range(len(scripts)):
         script = str(scripts[i])
-        if script.find('"room_id"') > 0:
+        if script.find('"room_id"') > 0 and script.find('.flv') > 0:
             content = str(scripts[i].contents[0])
             json_part = content.split("=", 1)[1]
             data = simplejson.loads(json_part)
