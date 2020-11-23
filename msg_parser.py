@@ -5,25 +5,15 @@ import simplejson
 # COMBO_END
 # ROOM_BLOCK_MSG  禁言
 
-STARTED = False
-
-
-def assemble_json(user, msg, cmd):
-    danmu = {'component': 'DANMAKU', 'user': user, 'message': msg, 'cmd': cmd, 'from': 'Bilibili'}
-    return simplejson.dumps(danmu)
-
-
-def parse_danmu(danmuStr):
-    danmu = simplejson.loads(danmuStr)
+def parse_danmu(danmu):
+    danmu = simplejson.loads(danmu)
     cmd = danmu['cmd']
-    print(cmd)
     if cmd == 'DANMU_MSG':
         user_name = danmu['info'][2][1]
         msg = danmu['info'][1]
         danmu_msg = user_name + ': ' + msg
         print(danmu_msg)
         print('================================\n\n')
-        return assemble_json(user_name, msg, cmd)
     elif cmd == 'SEND_GIFT':
         gift_name = danmu['data']['giftName']
         user_name = danmu['data']['uname']
@@ -31,22 +21,17 @@ def parse_danmu(danmuStr):
         danmu_msg = user_name + ' 赠送: ' + gift_name + 'x' + str(num)
         print(danmu_msg)
         print('================================\n\n')
-        return ""
-        # return assembleJson(user_name, danmu_msg, cmd)
     elif cmd == 'WELCOME_GUARD':
-        # {"cmd":"WELCOME_GUARD","data":{"uid":49861834,"username":"387懒癌末末","guard_level":3}}
-        # 舰长进入直播间
         user_name = danmu['data']['uname']
         print('欢迎舰长: ' + user_name)
         print('================================\n\n')
-        return assemble_json(user_name, "", cmd)
     elif cmd == 'WELCOME':
         # {"cmd":"WELCOME","data":{"uid":32435143,"uname":"Elucidator丶咲夜","is_admin":false,"svip":1}}
         user_name = danmu['data']['uname']
         print('欢迎 ' + user_name)
         print('================================\n\n')
-        return assemble_json(user_name, "", cmd)
     else:
         print("UNKNOWN CMD: " + cmd)
+        print(danmu)
         print('================================\n\n')
         return ''

@@ -1,31 +1,37 @@
 # coding: utf-8
 import random
-import sys
 import _thread
 import time
 import requests
-import xml.dom.minidom
 import struct
 import simplejson
 import socket
-import bparser
+import logging
+import zlib
+import msg_parser
 
-PRINT_JSON = False
+LOG_FORMAT = "%(asctime)s - %(levelname)s - %(message)s"
+DATE_FORMAT = "%m/%d/%Y %H:%M:%S %p"
+fp = logging.FileHandler('danmu-man.log', encoding='utf-8')
+fs = logging.StreamHandler()
+logging.basicConfig(level=logging.DEBUG, format=LOG_FORMAT, datefmt=DATE_FORMAT, handlers=[fp, fs])
 
 
-def print_json(json_data):
-    if PRINT_JSON:
-        print('☘ ☘ Json format☘ ☘')
-        print(json_data)
-        print('\n')
+def http_get_request(url):
+    s = requests.session()
+    response = s.get(url)
+    return response.text
 
 
-class DMYa(object):
+class DanmuYa:
+
     def __init__(self, room_id, u_id=0):
+        self.running = False
         self.room_id = room_id
-        self.api_room_detail_url = 'https://api.live.bilibili.com/api/player?id=cid:{}'.format(room_id)
+        self.api_room_detail_url = 'https://api.live.bilibili.com/room/v1/Danmu/getConf?room_id={}'.format(room_id)
         self.dm_host = None
-        self.socket_client = self._set_up()
+        self.token = None
+        self.socket_client = self.set_up()
         self._uid = u_id or int(100000000000000.0 + 200000000000000.0 * random.random())
         self.magic = 16
         self.ver = 1
@@ -33,103 +39,147 @@ class DMYa(object):
         self.package_type = 1
         self.max_data_length = 65495
 
-    def _set_up(self):
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        room_detail_xml_string = self._http_get_request(self.api_room_detail_url)
-        xml_string = ('<root>' + room_detail_xml_string.strip() + '</root>').encode('utf-8')
-        root = xml.dom.minidom.parseString(xml_string).documentElement
-        dm_server = root.getElementsByTagName('dm_server')
-        self.dm_host = dm_server[0].firstChild.data
-        # self.dm_host = '120.92.112.150'
-        s.connect((self.dm_host, 2243))
-        return s
+    def set_up(self):
+        logging.debug(self.api_room_detail_url)
+        room_detail_str = http_get_request(self.api_room_detail_url)
+        logging.debug(room_detail_str)
+        room_detail = simplejson.loads(room_detail_str)
+        self.dm_host = room_detail['data']['host']
+        self.token = room_detail['data']['token']
+        logging.debug(self.dm_host)
 
-    def _heartbeat(self):
-        while True:
-            time.sleep(30)
-            # heartbeat_pack = struct.pack('!IHHII', length, magic_num, version, msg_type, data_exchange_pack)
-            heartbeat_pack = struct.pack('!IHHII', 16, 16, 1, 2, 1)
-            self.socket_client.send(heartbeat_pack + "".encode('utf-8'))
-            print('Client ❤ ❤ ❤ ❤ ❤ ❤ ❤ ❤ ❤ ❤ ❤\n')
-            # \u2665
+        conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        conn.connect((self.dm_host, 2243))
+        self.running = True
+        return conn
 
-    def _http_get_request(self, url):
-        s = requests.session()
-        response = s.get(url)
-        return response.text
+    def _heartbeat(self, socket_client):
+        while self.running:
+            try:
+                heartbeat_pack = struct.pack('!IHHII', 16, 16, 1, 2, 1)
+                socket_client.send(heartbeat_pack + "".encode('utf-8'))
+                logging.info('Client ❤ ❤ ❤ ❤ ❤ ❤ ❤ ❤ ❤ ❤ ❤')
+                time.sleep(30)
+            except ConnectionAbortedError:
+                logging.error("ConnectionAbortedError error: ", exc_info=True)
+                self.running = False
+                break
+
+        logging.warning("Running status: %s", self.running)
+        logging.warning('Heartbeat stopped...')
 
     def _pack_socket_data(self, data_length, data):
         _data = data.encode('utf-8')
         _send_bytes = struct.pack('!IHHII', data_length, self.magic, self.ver, self.into_room, self.package_type)
         return _send_bytes + _data
 
-    def recv_data(self, expect):
+    def _recv_data(self, expect):
         left = expect
         data = bytes()
         while left > 0:
-            delta = self.socket_client.recv(left)
-            if len(delta) < 1:
-                print('=====BROKEN=====')
+            try:
+                delta = self.socket_client.recv(left)
+                if len(delta) < 1:
+                    pass
+                    logging.warning('BROKEN')
+                    return None
+                data += delta
+                left = left - len(delta)
+            except:
                 return None
-            data += delta
-            left = left - len(delta)
         return data
 
-    def _start(self):
-        _thread.start_new_thread(self._heartbeat, ())
-        # 是JSON 前面要补16字节数据
-        _dmj_data = simplejson.dumps({
-            "roomid": self.room_id,
-            "uid": self._uid,
-        }, separators=(',', ':'))
-        total_length = 16 + len(_dmj_data)
-        data = self._pack_socket_data(total_length, _dmj_data)
-        self.socket_client.send(data)
-        # 会断是因为心跳问题，需要30秒内发送心跳
-        # 这里先接收确认进入房间的信息
-        self.socket_client.recv(16)
+    def _break_msg(self, msg_bytes):
+        claimed_len, magic, ver, message_type, package_type = struct.unpack('!IHHII', msg_bytes[0:16])
+        splitted_msg = msg_bytes[16:claimed_len]
+        splitted_msg_json_str = splitted_msg.decode('utf-8')
+        if claimed_len == len(msg_bytes):
+            msg_parser.parse_danmu(splitted_msg_json_str)
+            #print(splitted_msg_json_str)
+            return
+        else:
+            self._break_msg(msg_bytes[claimed_len:])
 
+    def _danmu_event_loop(self):
         while True:
-            pre_data = self.recv_data(16)
-
             try:
+                pre_data = self._recv_data(16)
+                if pre_data is None:
+                    logging.warning('Connection broken')
+                    break
+
                 claimed_len, magic, ver, message_type, package_type = struct.unpack('!IHHII', pre_data)
+                if message_type == 8:
+                    init_pack = self._recv_data(claimed_len - 16)
+                    logging.info('Init. pack received %s', init_pack.decode())
+                    continue
+                if message_type != 5 and message_type != 3:
+                    logging.warning('unknown message type: %s, going to stop...', str(message_type))
+                    break
+                if package_type != 0 and package_type != 1:
+                    logging.warning('unknown package_type: %s', str(package_type))
+
                 if claimed_len == 20:
-                    print('Bilibili ❤ ❤ ❤ ❤ ❤ ❤ ❤ ❤ ❤ ❤ ❤')
-                    danmu_msg_package = self.recv_data(claimed_len - 16)
+                    logging.info('Bilibili ❤ ❤ ❤ ❤ ❤ ❤ ❤ ❤ ❤ ❤ ❤')
+                    danmu_msg_package = self._recv_data(claimed_len - 16)
+                    if pre_data is None:
+                        logging.warning('Connection broken, going to stop...')
+                        self.stop()
+                        break
                     online = struct.unpack('!l', danmu_msg_package)
-                    print('人气值: ' + str(online[0]) + '\n')
+                    logging.info('人气值: ' + str(online[0]) + '\n')
                     continue
             except struct.error:
-                print('pre_data: ' + pre_data.decode('utf-8'))
-                print('pre_data_len: ' + str(len(pre_data)))
+                logging.error('pre_data: ' + pre_data.decode('utf-8'), exc_info=True)
+                logging.error('pre_data_len: ' + str(len(pre_data)), exc_info=True)
                 continue
             except:
-                print("Unexpected error222:", sys.exc_info()[0])
-                continue
+                logging.error("Unexpected error: ", exc_info=True)
+                self.stop()
+                break
 
             try:
-                danmu_msg_package = self.recv_data(claimed_len - 16)
-                danmu_msg_json = danmu_msg_package.decode('utf-8')
-                print_json(danmu_msg_json)
-                danmu_brief = bparser.parse_danmu(danmu_msg_json)
+                danmu_msg_package = self._recv_data(claimed_len - 16)
+                if danmu_msg_package is None:
+                    logging.warning('Connection broken')
+                    break
+
+                #logging.debug('Version No. %s', ver)
+                if ver == 2:
+                    deflated_msg_package = zlib.decompress(danmu_msg_package)
+                    self._break_msg(deflated_msg_package)
+                else:
+                    danmu_msg_json = danmu_msg_package.decode('utf-8')
             except simplejson.JSONDecodeError:
-                print('json error: ' + danmu_msg_json + '\n\n')
-                # continue
+                logging.error("Unexpected error: ", exc_info=True)
+                logging.error('Original json: %s', danmu_msg_json)
             except UnicodeDecodeError:
-                print('UnicodeDecodeError***************************')
-                print(danmu_msg_package)
-                print('UnicodeDecodeError***************************\n\n')
-                # continue
+                logging.error("Unexpected error:", exc_info=True)
+                logging.error(danmu_msg_package)
             except:
-                print("Unexpected error:", sys.exc_info()[0])
+                logging.error("Unexpected error:", exc_info=True)
+                logging.error("Going to stop...")
+                return
+
+    def stop(self):
+        logging.warning("stop called.")
+        self.running = False
+        if self.socket_client:
+            self.socket_client.close()
+
+    def start(self):
+        logging.info('%s DanmuYa Go...', self.room_id)
+        _thread.start_new_thread(self._heartbeat, (self.socket_client,))
+
+        init_data = simplejson.dumps({"roomid": self.room_id, "uid": self._uid})
+        total_length = 16 + len(init_data)
+        data = self._pack_socket_data(total_length, init_data)
+        self.socket_client.send(data)
+        _thread.start_new_thread(self._danmu_event_loop, ())
 
 
 if __name__ == '__main__':
-    print(sys.argv)
-    # Diffir Live
-    # room_id=5565763
-    room_id = 5096
-
-    dmj = DMYa(room_id)
-    dmj._start()
+    dmj = DanmuYa(47867)
+    dmj.start()
+    while dmj.running:
+        time.sleep(5)
